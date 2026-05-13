@@ -8,12 +8,12 @@ const router = Router();
 
 const isProd = process.env.NODE_ENV === 'production';
 
+// On Netlify the frontend and the function share the same origin (the .netlify.app
+// domain), so SameSite=Lax is enough. We just flip Secure on in prod.
 function setAuthCookie(res: import('express').Response, token: string) {
-  // In prod the frontend (Netlify) and backend (Render) are on different
-  // origins, so the cookie must be SameSite=None + Secure to be sent.
   res.cookie('coach_token', token, {
     httpOnly: true,
-    sameSite: isProd ? 'none' : 'lax',
+    sameSite: 'lax',
     secure: isProd,
     maxAge: 30 * 24 * 60 * 60 * 1000,
     path: '/',
@@ -92,7 +92,7 @@ router.post('/logout', (_req, res) => {
   res.clearCookie('coach_token', {
     path: '/',
     httpOnly: true,
-    sameSite: isProd ? 'none' : 'lax',
+    sameSite: 'lax',
     secure: isProd,
   });
   res.json({ ok: true });

@@ -130,43 +130,50 @@ coach-ai/
 - `GET /api/metrics/history?days=7|30|90` — daily load / acute / chronic / Banister
 - `GET /api/metrics/weekly?weeks=12` — weekly recap for the Analyses page
 
-## Deployment (Netlify front + Render back)
+## Deployment (everything on Netlify)
 
-The repo is preconfigured with `netlify.toml` (frontend) and `render.yaml` (backend + Postgres).
+The Express backend is bundled as a single Netlify Function (`netlify/functions/api.ts`) that wraps the Express app via `serverless-http`. Postgres is hosted on **Neon** (free tier).
 
-### 1. Deploy the backend on Render
+### 1. Create a Postgres database on Neon
 
-1. Go to https://dashboard.render.com → **New** → **Blueprint**.
-2. Connect your GitHub repo and pick `render.yaml`. Render will create:
-   - A free **Postgres** instance (`coach-ai-db`)
-   - A free **Web Service** (`coach-ai-api`) with `DATABASE_URL` and `JWT_SECRET` auto-wired
-3. After the first deploy succeeds, copy the service URL (e.g. `https://coach-ai-api.onrender.com`).
-4. **Seed the demo data**: from the Render dashboard, open the service shell and run:
-   ```bash
-   npx prisma migrate deploy   # already done by start:prod, but safe to re-run
-   npm run seed
-   ```
+1. Go to https://neon.tech → create a free project.
+2. Copy the **pooled** connection string (`...neondb?sslmode=require&channel_binding=require` — pick the one labelled "Pooled connection"). Pooled is required for serverless.
 
-### 2. Deploy the frontend on Netlify
+### 2. Run the migration once against Neon (locally)
 
-1. Go to https://app.netlify.com → **Add new site** → **Import from Git** and pick the repo.
-2. Build settings are auto-detected from `netlify.toml` (base = `frontend`, publish = `dist`).
-3. Add an environment variable in **Site settings → Environment variables**:
-   - `VITE_API_URL` = `https://coach-ai-api.onrender.com` (your Render URL, no trailing slash)
-4. **Trigger a new deploy** so Vite picks up the env var.
-5. Copy the Netlify URL (e.g. `https://coach-ai.netlify.app`).
+```bash
+cd backend
+DATABASE_URL="<your neon pooled url>" npx prisma migrate deploy
+```
 
-### 3. Wire CORS back
+### 3. Deploy on Netlify
 
-In the Render dashboard, edit the `coach-ai-api` env var:
+1. https://app.netlify.com → **Add new site → Import from Git** → pick this repo and the right branch.
+2. Build settings come from `netlify.toml` — leave them as-is.
+3. **Site configuration → Environment variables** — add:
+   - `DATABASE_URL` = your Neon pooled URL
+   - `JWT_SECRET` = any long random string (e.g. `openssl rand -hex 32`)
+   - `NODE_ENV` = `production`
+   - `FRONTEND_ORIGIN` = your Netlify site URL (e.g. `https://coach-ai.netlify.app`) — optional, only needed if you also call the API from another origin
+   - `ADMIN_TOKEN` = any random secret (used **only** for the one-shot demo seed below; you can delete it after)
+4. Trigger a deploy.
 
-- `FRONTEND_ORIGIN` = `https://coach-ai.netlify.app` (your Netlify URL)
-  - You can pass several origins separated by commas, including a wildcard for previews:
-    `https://coach-ai.netlify.app,https://deploy-preview-*--coach-ai.netlify.app`
+### 4. Seed the demo data (once)
 
-Restart the service.  You should now be able to log in from the Netlify site with the seeded credentials (`thomas@coach.ai` / `password123`).
+After the first deploy succeeds:
 
-> **Note on Render free tier**: the backend sleeps after 15 min of inactivity. The first request after a cold start takes ~30 s — that's normal.
+```bash
+curl -X POST https://<your-site>.netlify.app/api/admin/seed \
+  -H "x-admin-token: <ADMIN_TOKEN you set>"
+```
+
+Demo login : `thomas@coach.ai` / `password123`.
+
+### 5. Done
+
+Open `https://<your-site>.netlify.app`, log in with the demo credentials. The Function answers `/api/*` from the same origin, so cookies and CSRF are simple.
+
+> **Cold starts**: the first request after a few minutes of idleness takes 1–3 s while the Function and Prisma client warm up. Subsequent requests are fast.
 
 ## Scientific notes
 

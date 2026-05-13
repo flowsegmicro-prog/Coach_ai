@@ -1,7 +1,8 @@
 import type { DashboardMetrics, HistoryResponse, Session, User, WeeklyResponse } from '@/types';
 
-// In dev: empty string -> Vite proxies "/api" to localhost:4000.
-// In prod: set VITE_API_URL to the backend root (e.g. https://coach-ai-api.onrender.com).
+// Same-origin by default: Vite proxies /api to localhost:4000 in dev, and on
+// Netlify the function answers /api/* on the same domain. VITE_API_URL is only
+// useful if you point the SPA at a backend hosted somewhere else.
 const API_ROOT = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
 const BASE = `${API_ROOT}/api`;
 

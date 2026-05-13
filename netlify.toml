@@ -1,12 +1,36 @@
 [build]
-  base = "frontend"
+  # Install root deps (postinstall runs `prisma generate`), then build the Vite frontend.
   command = "npm install && npm run build"
-  publish = "dist"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+  # Skip Prisma's binary download check at build time — it's already done in postinstall.
+  PRISMA_HIDE_UPDATE_MESSAGE = "true"
 
-# SPA: every route falls back to index.html so React Router can handle it.
+[functions]
+  # esbuild bundles the function (TS/JS), but @prisma/client must stay external
+  # because it ships native engines that esbuild can't inline.
+  node_bundler = "esbuild"
+
+[functions."api"]
+  external_node_modules = ["@prisma/client", ".prisma/client", "bcrypt"]
+  # Ship the generated Prisma client + native engines so the Lambda can talk to Postgres.
+  included_files = [
+    "node_modules/.prisma/client/**",
+    "node_modules/@prisma/client/**",
+    "backend/prisma/schema.prisma"
+  ]
+
+# Every API call reaches the single Express function.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+# SPA fallback: everything else serves the React app.
 [[redirects]]
   from = "/*"
   to = "/index.html"
