@@ -1,6 +1,9 @@
 import type { DashboardMetrics, HistoryResponse, Session, User, WeeklyResponse } from '@/types';
 
-const BASE = '/api';
+// In dev: empty string -> Vite proxies "/api" to localhost:4000.
+// In prod: set VITE_API_URL to the backend root (e.g. https://coach-ai-api.onrender.com).
+const API_ROOT = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
+const BASE = `${API_ROOT}/api`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

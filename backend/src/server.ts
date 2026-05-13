@@ -9,11 +9,28 @@ import { errorHandler } from './middleware/error.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173';
+// Comma-separated list, e.g. "https://my-app.netlify.app,https://deploy-preview-*.netlify.app"
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN,
+    origin(origin, cb) {
+      // Allow non-browser callers (curl, server-to-server) with no Origin header.
+      if (!origin) return cb(null, true);
+      const ok = FRONTEND_ORIGINS.some((allowed) => {
+        if (allowed === origin) return true;
+        // Wildcard match for Netlify deploy previews like "https://deploy-preview-12--app.netlify.app".
+        if (allowed.includes('*')) {
+          const re = new RegExp('^' + allowed.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+          return re.test(origin);
+        }
+        return false;
+      });
+      cb(ok ? null : new Error(`Origin ${origin} not allowed by CORS`), ok);
+    },
     credentials: true,
   }),
 );

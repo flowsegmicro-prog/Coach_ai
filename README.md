@@ -130,6 +130,44 @@ coach-ai/
 - `GET /api/metrics/history?days=7|30|90` — daily load / acute / chronic / Banister
 - `GET /api/metrics/weekly?weeks=12` — weekly recap for the Analyses page
 
+## Deployment (Netlify front + Render back)
+
+The repo is preconfigured with `netlify.toml` (frontend) and `render.yaml` (backend + Postgres).
+
+### 1. Deploy the backend on Render
+
+1. Go to https://dashboard.render.com → **New** → **Blueprint**.
+2. Connect your GitHub repo and pick `render.yaml`. Render will create:
+   - A free **Postgres** instance (`coach-ai-db`)
+   - A free **Web Service** (`coach-ai-api`) with `DATABASE_URL` and `JWT_SECRET` auto-wired
+3. After the first deploy succeeds, copy the service URL (e.g. `https://coach-ai-api.onrender.com`).
+4. **Seed the demo data**: from the Render dashboard, open the service shell and run:
+   ```bash
+   npx prisma migrate deploy   # already done by start:prod, but safe to re-run
+   npm run seed
+   ```
+
+### 2. Deploy the frontend on Netlify
+
+1. Go to https://app.netlify.com → **Add new site** → **Import from Git** and pick the repo.
+2. Build settings are auto-detected from `netlify.toml` (base = `frontend`, publish = `dist`).
+3. Add an environment variable in **Site settings → Environment variables**:
+   - `VITE_API_URL` = `https://coach-ai-api.onrender.com` (your Render URL, no trailing slash)
+4. **Trigger a new deploy** so Vite picks up the env var.
+5. Copy the Netlify URL (e.g. `https://coach-ai.netlify.app`).
+
+### 3. Wire CORS back
+
+In the Render dashboard, edit the `coach-ai-api` env var:
+
+- `FRONTEND_ORIGIN` = `https://coach-ai.netlify.app` (your Netlify URL)
+  - You can pass several origins separated by commas, including a wildcard for previews:
+    `https://coach-ai.netlify.app,https://deploy-preview-*--coach-ai.netlify.app`
+
+Restart the service.  You should now be able to log in from the Netlify site with the seeded credentials (`thomas@coach.ai` / `password123`).
+
+> **Note on Render free tier**: the backend sleeps after 15 min of inactivity. The first request after a cold start takes ~30 s — that's normal.
+
 ## Scientific notes
 
 - **sRPE**: `load = duration_min × RPE` (Foster 1998)
